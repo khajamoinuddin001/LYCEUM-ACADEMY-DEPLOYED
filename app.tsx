@@ -342,7 +342,6 @@ const DashboardLayout: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword }),
       });
-
       const data = await response.json();
 
       if (!response.ok) {
@@ -374,9 +373,9 @@ const DashboardLayout: React.FC = () => {
     });
   };
 
-  const handleRegisterStudent = async (name: string, email: string, password: string): Promise<{ success: boolean, message: string }> => {
+  const handleRegisterStudent = async (name: string, email: string, password: string, adminKey?: string): Promise<{ success: boolean, message: string }> => {
     try {
-      const response = await api.registerStudent(name, email, password);
+      const response = await api.registerStudent(name, email, password, adminKey);
       return response;
     } catch (error: any) {
       return { success: false, message: error.message || 'Registration failed' };
@@ -663,24 +662,21 @@ const DashboardLayout: React.FC = () => {
     });
   };
 
-  const handleChangePassword = async (userId: number, currentPassword: string, newPassword: string): Promise<{ success: boolean, message: string }> => {
-    const { success, message, updatedUser } = await api.changePassword(userId, currentPassword, newPassword);
-    if (success && updatedUser) {
-      setUsers(users.map(u => (u.id === userId ? updatedUser : u)));
-      if (storedCurrentUser && storedCurrentUser.id === userId) {
-        setStoredCurrentUser(updatedUser);
+  const handleChangePassword = async (currentPassword: string, newPassword: string): Promise<{ success: boolean, message: string }> => {
+    try {
+      const result = await api.changePassword(currentPassword, newPassword);
+      if (result.success) {
+        logActivity(`Changed password.`);
+        addNotification({
+          title: 'Password Changed',
+          description: 'Your password has been successfully updated.',
+          type: 'success'
+        });
       }
-      if (impersonatingUser && impersonatingUser.id === userId) {
-        setImpersonatingUser(updatedUser);
-      }
-      logActivity(`Changed password for ${updatedUser.name}.`);
-      addNotification({
-        title: 'Password Changed',
-        description: 'Your password has been successfully updated.',
-        recipientUserIds: [userId]
-      });
+      return result;
+    } catch (error: any) {
+      return { success: false, message: error.message || 'Failed to change password' };
     }
-    return { success, message };
   };
 
   const handleSaveQuotationTemplate = async (templateToSave: QuotationTemplate) => {

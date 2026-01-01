@@ -79,10 +79,10 @@ export const login = async (email: string, password: string, remember: boolean =
   return data;
 };
 
-export const registerStudent = async (name: string, email: string, password: string): Promise<{ success: boolean; message: string }> => {
+export const registerStudent = async (name: string, email: string, password: string, adminKey?: string): Promise<{ success: boolean; message: string }> => {
   return apiRequest<{ success: boolean; message: string }>('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password }),
+    body: JSON.stringify({ name, email, password, ...(adminKey && { adminKey }) }),
   });
 };
 
@@ -97,6 +97,21 @@ export const changePassword = async (currentPassword: string, newPassword: strin
     body: JSON.stringify({ currentPassword, newPassword }),
   });
 };
+
+export const createUser = async (name: string, email: string, role: string, permissions: any): Promise<{ success: boolean; user: User; temporaryPassword: string }> => {
+  return apiRequest('/auth/create-user', {
+    method: 'POST',
+    body: JSON.stringify({ name, email, role, permissions }),
+  });
+};
+
+export const deleteUser = async (userId: number): Promise<{ success: boolean; message: string }> => {
+  return apiRequest(`/users/${userId}`, {
+    method: 'DELETE',
+  });
+};
+
+
 
 // Users
 export const getUsers = async (): Promise<User[]> => {

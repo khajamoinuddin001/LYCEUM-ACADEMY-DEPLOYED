@@ -5,19 +5,19 @@ import QuotationTemplateModal from './quotation_template_modal';
 import CouponEditModal from './coupon_edit_modal';
 
 interface SettingsViewProps {
-  user: User;
-  onNavigateBack: () => void;
-  quotationTemplates: QuotationTemplate[];
-  onSaveTemplate: (template: QuotationTemplate) => void;
-  onDeleteTemplate: (templateId: number) => void;
-  onUpdateProfile: (userId: number, name: string, email: string) => void;
-  onChangePassword: (userId: number, current: string, newPass: string) => Promise<{ success: boolean; message: string; }>;
-  darkMode: boolean;
-  setDarkMode: (value: boolean | ((val: boolean) => boolean)) => void;
-  coupons: Coupon[];
-  onSaveCoupon: (coupon: Coupon) => void;
-  onDeleteCoupon: (couponCode: string) => void;
-  courses: LmsCourse[];
+    user: User;
+    onNavigateBack: () => void;
+    quotationTemplates: QuotationTemplate[];
+    onSaveTemplate: (template: QuotationTemplate) => void;
+    onDeleteTemplate: (templateId: number) => void;
+    onUpdateProfile: (userId: number, name: string, email: string) => void;
+    onChangePassword: (current: string, newPass: string) => Promise<{ success: boolean; message: string; }>;
+    darkMode: boolean;
+    setDarkMode: (value: boolean | ((val: boolean) => boolean)) => void;
+    coupons: Coupon[];
+    onSaveCoupon: (coupon: Coupon) => void;
+    onDeleteCoupon: (couponCode: string) => void;
+    courses: LmsCourse[];
 }
 
 type Tab = 'Profile' | 'Security' | 'Appearance' | 'Notifications' | 'Templates' | 'Coupons';
@@ -75,7 +75,7 @@ const ProfileTab: React.FC<Pick<SettingsViewProps, 'user' | 'onUpdateProfile'>> 
 const SecurityTab: React.FC<Pick<SettingsViewProps, 'user' | 'onChangePassword'>> = ({ user, onChangePassword }) => {
     const [passwords, setPasswords] = useState({ current: '', newPass: '', confirm: '' });
     const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
@@ -84,10 +84,10 @@ const SecurityTab: React.FC<Pick<SettingsViewProps, 'user' | 'onChangePassword'>
             return;
         }
         if (passwords.newPass.length < 6) {
-             setMessage({ type: 'error', text: "New password must be at least 6 characters long." });
-             return;
+            setMessage({ type: 'error', text: "New password must be at least 6 characters long." });
+            return;
         }
-        const result = await onChangePassword(user.id, passwords.current, passwords.newPass);
+        const result = await onChangePassword(passwords.current, passwords.newPass);
         setMessage({ type: result.success ? 'success' : 'error', text: result.message });
         if (result.success) {
             setPasswords({ current: '', newPass: '', confirm: '' });
@@ -103,15 +103,15 @@ const SecurityTab: React.FC<Pick<SettingsViewProps, 'user' | 'onChangePassword'>
                 <div className="p-6 space-y-4">
                     <div>
                         <label htmlFor="current-password" className={labelClasses}>Current Password</label>
-                        <input type="password" id="current-password" value={passwords.current} onChange={e => setPasswords(p => ({...p, current: e.target.value}))} className={inputClasses} autoComplete="current-password" />
+                        <input type="password" id="current-password" value={passwords.current} onChange={e => setPasswords(p => ({ ...p, current: e.target.value }))} className={inputClasses} autoComplete="current-password" />
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="new-password" className={labelClasses}>New Password</label>
-                        <input type="password" id="new-password" value={passwords.newPass} onChange={e => setPasswords(p => ({...p, newPass: e.target.value}))} className={inputClasses} autoComplete="new-password" />
+                        <input type="password" id="new-password" value={passwords.newPass} onChange={e => setPasswords(p => ({ ...p, newPass: e.target.value }))} className={inputClasses} autoComplete="new-password" />
                     </div>
-                     <div>
+                    <div>
                         <label htmlFor="confirm-password" className={labelClasses}>Confirm New Password</label>
-                        <input type="password" id="confirm-password" value={passwords.confirm} onChange={e => setPasswords(p => ({...p, confirm: e.target.value}))} className={inputClasses} autoComplete="new-password" />
+                        <input type="password" id="confirm-password" value={passwords.confirm} onChange={e => setPasswords(p => ({ ...p, confirm: e.target.value }))} className={inputClasses} autoComplete="new-password" />
                     </div>
                 </div>
                 <div className="p-6 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between rounded-b-lg">
@@ -129,14 +129,12 @@ const Toggle: React.FC<{ label: string; enabled: boolean; setEnabled: (e: boolea
         <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
         <button
             onClick={() => setEnabled(!enabled)}
-            className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-lyceum-blue ${
-                enabled ? 'bg-lyceum-blue' : 'bg-gray-200 dark:bg-gray-600'
-            }`}
+            className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-lyceum-blue ${enabled ? 'bg-lyceum-blue' : 'bg-gray-200 dark:bg-gray-600'
+                }`}
         >
             <span
-                className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
-                    enabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
+                className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
             />
         </button>
     </div>
@@ -150,9 +148,9 @@ const AppearanceTab: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Customize the look and feel of the application.</p>
             </div>
             <div className="p-6 space-y-6">
-                 <div>
+                <div>
                     <label htmlFor="language" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Language</label>
-                     <select id="language" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-lyceum-blue focus:border-lyceum-blue sm:text-sm">
+                    <select id="language" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:outline-none focus:ring-lyceum-blue focus:border-lyceum-blue sm:text-sm">
                         <option>English (US)</option>
                         <option>Español</option>
                         <option>Français</option>
@@ -189,7 +187,7 @@ const TemplatesTab: React.FC<Pick<SettingsViewProps, 'quotationTemplates' | 'onS
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Quotation Templates</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage pre-built quotation packages.</p>
             </div>
-             <div className="p-6">
+            <div className="p-6">
                 <div className="flex justify-end mb-4">
                     <button
                         onClick={() => setEditingTemplate('new')}
@@ -211,9 +209,9 @@ const TemplatesTab: React.FC<Pick<SettingsViewProps, 'quotationTemplates' | 'onS
                                     <Edit size={16} />
                                 </button>
                                 <button
-                                onClick={() => { if(window.confirm(`Are you sure you want to delete "${template.title}"?`)) onDeleteTemplate(template.id) }}
-                                className="p-2 text-gray-500 hover:text-red-500 rounded-md"
-                                aria-label={`Delete ${template.title}`}
+                                    onClick={() => { if (window.confirm(`Are you sure you want to delete "${template.title}"?`)) onDeleteTemplate(template.id) }}
+                                    className="p-2 text-gray-500 hover:text-red-500 rounded-md"
+                                    aria-label={`Delete ${template.title}`}
                                 >
                                     <Trash2 size={16} />
                                 </button>
@@ -245,7 +243,7 @@ const CouponsTab: React.FC<Pick<SettingsViewProps, 'coupons' | 'onSaveCoupon' | 
                 <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Discount Coupons</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage coupon codes for course purchases.</p>
             </div>
-             <div className="p-6">
+            <div className="p-6">
                 <div className="flex justify-end mb-4">
                     <button
                         onClick={() => setEditingCoupon('new')}
@@ -307,57 +305,56 @@ const CouponsTab: React.FC<Pick<SettingsViewProps, 'coupons' | 'onSaveCoupon' | 
     );
 };
 const SettingsView: React.FC<SettingsViewProps> = (props) => {
-  const [activeTab, setActiveTab] = useState<Tab>('Profile');
+    const [activeTab, setActiveTab] = useState<Tab>('Profile');
 
-  const renderContent = () => {
-      switch(activeTab) {
-          case 'Profile': return <ProfileTab user={props.user} onUpdateProfile={props.onUpdateProfile} />;
-          case 'Security': return <SecurityTab user={props.user} onChangePassword={props.onChangePassword} />;
-          case 'Appearance': return <AppearanceTab />;
-          case 'Notifications': return <NotificationsTab />;
-          case 'Templates': return <TemplatesTab {...props} />;
-          case 'Coupons': return <CouponsTab {...props} />;
-          default: return null;
-      }
-  };
+    const renderContent = () => {
+        switch (activeTab) {
+            case 'Profile': return <ProfileTab user={props.user} onUpdateProfile={props.onUpdateProfile} />;
+            case 'Security': return <SecurityTab user={props.user} onChangePassword={props.onChangePassword} />;
+            case 'Appearance': return <AppearanceTab />;
+            case 'Notifications': return <NotificationsTab />;
+            case 'Templates': return <TemplatesTab {...props} />;
+            case 'Coupons': return <CouponsTab {...props} />;
+            default: return null;
+        }
+    };
 
-  return (
-    <div className="animate-fade-in max-w-5xl mx-auto">
-        <button
-            onClick={props.onNavigateBack}
-            className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-lyceum-blue mb-4 transition-colors"
-            aria-label="Back to apps"
-        >
-            <ArrowLeft size={16} className="mr-2" />
-            Back to Apps
-        </button>
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Settings</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-6">Manage your application and account settings.</p>
+    return (
+        <div className="animate-fade-in max-w-5xl mx-auto">
+            <button
+                onClick={props.onNavigateBack}
+                className="flex items-center text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-lyceum-blue mb-4 transition-colors"
+                aria-label="Back to apps"
+            >
+                <ArrowLeft size={16} className="mr-2" />
+                Back to Apps
+            </button>
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">Settings</h1>
+            <p className="text-gray-500 dark:text-gray-400 mb-6">Manage your application and account settings.</p>
 
-        <div className="flex flex-col md:flex-row gap-8">
-            <aside className="md:w-1/4">
-                <nav className="space-y-1">
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.name}
-                            onClick={() => setActiveTab(tab.name)}
-                            className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                                activeTab === tab.name
+            <div className="flex flex-col md:flex-row gap-8">
+                <aside className="md:w-1/4">
+                    <nav className="space-y-1">
+                        {TABS.map(tab => (
+                            <button
+                                key={tab.name}
+                                onClick={() => setActiveTab(tab.name)}
+                                className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.name
                                     ? 'bg-lyceum-blue/10 dark:bg-lyceum-blue/20 text-lyceum-blue'
                                     : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
-                        >
-                            {tab.icon}
-                            <span className="ml-3">{tab.name}</span>
-                        </button>
-                    ))}
-                </nav>
-            </aside>
-            <main className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 min-h-[400px]">
-                {renderContent()}
-            </main>
-        </div>
-         <style>{`
+                                    }`}
+                            >
+                                {tab.icon}
+                                <span className="ml-3">{tab.name}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </aside>
+                <main className="flex-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 min-h-[400px]">
+                    {renderContent()}
+                </main>
+            </div>
+            <style>{`
             @keyframes fade-in {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -366,8 +363,8 @@ const SettingsView: React.FC<SettingsViewProps> = (props) => {
             animation: fade-in 0.3s ease-out forwards;
             }
         `}</style>
-    </div>
-  );
+        </div>
+    );
 };
 
 export default SettingsView;

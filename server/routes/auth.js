@@ -8,7 +8,7 @@ const router = express.Router();
 // Register student
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, adminKey } = req.body;
 
     // Validation
     if (!name || !email || !password) {
@@ -21,20 +21,39 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
+    // Determine role based on email or admin key
+    let userRole = 'Student';
+    const isAdminEmail = email.toLowerCase() === 'admin@lyceum.com';
+
+    if (isAdminEmail) {
+      userRole = 'Admin';
+    } else if (adminKey) {
+      // Validate admin key
+      const validAdminKey = process.env.ADMIN_REGISTRATION_KEY;
+      if (!validAdminKey) {
+        return res.status(500).json({ error: 'Admin registration is not configured on this server' });
+      }
+      if (adminKey === validAdminKey) {
+        userRole = 'Admin';
+      } else {
+        return res.status(403).json({ error: 'Invalid admin registration key' });
+      }
+    }
+
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Generate verification token (skip for admin@lyceum.com)
+    // Generate verification token (skip for admins)
     const crypto = await import('crypto');
-    const isAdminEmail = email.toLowerCase() === 'admin@lyceum.com';
-    const verificationToken = isAdminEmail ? null : crypto.randomBytes(32).toString('hex');
+    const isAdmin = userRole === 'Admin';
+    const verificationToken = isAdmin ? null : crypto.randomBytes(32).toString('hex');
 
-    // Create user (auto-verify admin@lyceum.com)
+    // Create user (auto-verify admins)
     const userResult = await query(`
       INSERT INTO users (name, email, password, role, permissions, is_verified, verification_token)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, name, email, role, permissions, "mustResetPassword"
-    `, [name, email.toLowerCase(), hashedPassword, isAdminEmail ? 'Admin' : 'Student', JSON.stringify({}), isAdminEmail, verificationToken]);
+      RETURNING id, name, email, role, permissions, must_reset_password
+    `, [name, email.toLowerCase(), hashedPassword, userRole, JSON.stringify({}), isAdmin, verificationToken]);
 
     const user = userResult.rows[0];
 
@@ -42,7 +61,7 @@ router.post('/register', async (req, res) => {
     const contactId = `LA${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(user.id).padStart(3, '0')}`;
 
     await query(`
-      INSERT INTO contacts ("userId", name, email, "contactId", department, major, notes, checklist, "activityLog", "recordedSessions")
+      INSERT INTO contacts (user_id, name, email, contact_id, department, major, notes, checklist, activity_log, recorded_sessions)
       VALUES ($1, $2, $3, $4, 'Unassigned', 'Unassigned', $5, '[]', '[]', '[]')
       RETURNING *
     `, [
@@ -53,16 +72,22 @@ router.post('/register', async (req, res) => {
       `Student registered on ${new Date().toLocaleDateString()}.`
     ]);
 
-    // Send verification email (skip for admin@lyceum.com)
-    if (!isAdminEmail) {
-      const { sendVerificationEmail } = await import('../email.js');
-      await sendVerificationEmail(email, name, verificationToken);
+    // Send verification email (skip for admins)
+    if (!isAdmin) {
+      try {
+        const { sendVerificationEmail } = await import('../email.js');
+        await sendVerificationEmail(email, name, verificationToken);
+      } catch (emailError) {
+        // Log but don't fail registration if email fails
+        console.warn('Failed to send verification email:', emailError.message);
+        console.log('User can still verify later or admin can manually verify');
+      }
     }
 
     res.json({
       success: true,
-      message: isAdminEmail
-        ? 'Registration successful. You can now log in.'
+      message: isAdmin
+        ? 'Admin registration successful. You can now log in.'
         : 'Registration successful. Please check your email to verify your account.'
     });
   } catch (error) {
@@ -137,7 +162,7 @@ router.post('/login', async (req, res) => {
       permissions: typeof userWithoutPassword.permissions === 'string'
         ? JSON.parse(userWithoutPassword.permissions)
         : userWithoutPassword.permissions,
-      mustResetPassword: userWithoutPassword.mustResetPassword
+      mustResetPassword: userWithoutPassword.must_reset_password
     };
 
     res.json({ user: safeUser, token });
@@ -151,7 +176,7 @@ router.post('/login', async (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const result = await query(
-      'SELECT id, name, email, role, permissions, "mustResetPassword" FROM users WHERE id = $1',
+      'SELECT id, name, email, role, permissions, must_reset_password FROM users WHERE id = $1',
       [req.user.id]
     );
 
@@ -163,7 +188,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     const safeUser = {
       ...user,
       permissions: typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions,
-      mustResetPassword: user.mustResetPassword
+      mustResetPassword: user.must_reset_password
     };
 
     res.json({ user: safeUser });
@@ -191,7 +216,7 @@ router.post('/change-password', authenticateToken, async (req, res) => {
 
     const hashedPassword = await hashPassword(newPassword);
     await query(
-      'UPDATE users SET password = $1, "mustResetPassword" = false WHERE id = $2',
+      'UPDATE users SET password = $1, must_reset_password = false WHERE id = $2',
       [hashedPassword, req.user.id]
     );
 
@@ -291,7 +316,7 @@ router.post('/reset-password', async (req, res) => {
     // Update user password
     await query(`
       UPDATE users 
-      SET password = $1, "mustResetPassword" = 0
+      SET password = $1, must_reset_password = 0
       WHERE email = $2
     `, [hashedPassword, email]);
 
@@ -309,6 +334,84 @@ router.post('/reset-password', async (req, res) => {
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ error: 'Failed to reset password' });
+  }
+});
+
+// Create User (Admin Only)
+router.post('/create-user', authenticateToken, async (req, res) => {
+  try {
+    const { name, email, role, permissions } = req.body;
+
+    // Check if requester is Admin
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can create users' });
+    }
+
+    // Validation
+    if (!name || !email || !role) {
+      return res.status(400).json({ error: 'Name, email, and role are required' });
+    }
+
+    // Validate role
+    if (!['Admin', 'Staff', 'Student'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role. Must be Admin, Staff, or Student' });
+    }
+
+    // Check if user exists
+    const existingResult = await query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existingResult.rows.length > 0) {
+      return res.status(400).json({ error: 'Email already registered' });
+    }
+
+    // Generate random password
+    const crypto = await import('crypto');
+    const temporaryPassword = crypto.randomBytes(8).toString('hex'); // 16 character password
+    const hashedPassword = await hashPassword(temporaryPassword);
+
+    // Create user (auto-verified, must reset password on first login)
+    const userResult = await query(`
+      INSERT INTO users (name, email, password, role, permissions, is_verified, verification_token, must_reset_password)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id, name, email, role, permissions, must_reset_password
+    `, [
+      name,
+      email.toLowerCase(),
+      hashedPassword,
+      role,
+      JSON.stringify(permissions || {}),
+      true, // Auto-verified
+      null, // No verification token needed
+      true  // Must reset password on first login
+    ]);
+
+    const user = userResult.rows[0];
+
+    // Create contact
+    const contactId = `LA${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}${String(user.id).padStart(3, '0')}`;
+
+    await query(`
+      INSERT INTO contacts (user_id, name, email, contact_id, department, major, notes, checklist, activity_log, recorded_sessions)
+      VALUES ($1, $2, $3, $4, 'Unassigned', 'Unassigned', $5, '[]', '[]', '[]')
+      RETURNING *
+    `, [
+      user.id,
+      name,
+      email.toLowerCase(),
+      contactId,
+      `${role} account created by admin on ${new Date().toLocaleDateString()}.`
+    ]);
+
+    res.json({
+      success: true,
+      user: {
+        ...user,
+        permissions: typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions
+      },
+      temporaryPassword // Return the password so admin can share it
+    });
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 

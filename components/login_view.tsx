@@ -7,7 +7,7 @@ import { Mail, Lock, UserPlus, ArrowLeft } from './icons';
 interface LoginViewProps {
     onLogin: (email: string, password: string, rememberMe: boolean) => Promise<void>;
     users: User[];
-    onRegister: (name: string, email: string, password: string) => Promise<{ success: boolean, message: string }>;
+    onRegister: (name: string, email: string, password: string, adminKey?: string) => Promise<{ success: boolean, message: string }>;
     onForgotPassword?: () => void;
     onBackToLanding?: () => void;
     initialIsRegister?: boolean;
@@ -34,6 +34,8 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, users, onRegister, onFor
     const [isLoading, setIsLoading] = useState(false);
     const [isRegisterView, setIsRegisterView] = useState(initialIsRegister || false);
     const [rememberMe, setRememberMe] = useState(false);
+    const [registerAsAdmin, setRegisterAsAdmin] = useState(false);
+    const [adminKey, setAdminKey] = useState('');
 
     useEffect(() => {
         if (initialIsRegister !== undefined) {
@@ -63,7 +65,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, users, onRegister, onFor
             return;
         }
         setIsLoading(true);
-        const result = await onRegister(name, email, password);
+        const result = await onRegister(name, email, password, registerAsAdmin ? adminKey : undefined);
         if (!result.success) {
             setError(result.message);
         }
@@ -77,6 +79,8 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, users, onRegister, onFor
         setEmail('');
         setPassword('');
         setName('');
+        setRegisterAsAdmin(false);
+        setAdminKey('');
     };
 
     return (
@@ -139,6 +143,21 @@ const LoginView: React.FC<LoginViewProps> = ({ onLogin, users, onRegister, onFor
                                     placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} />
                             </div>
                         </div>
+                        <div className="flex items-center">
+                            <input id="register-as-admin" name="register-as-admin" type="checkbox"
+                                checked={registerAsAdmin}
+                                onChange={(e) => setRegisterAsAdmin(e.target.checked)}
+                                className="h-4 w-4 text-lyceum-blue focus:ring-lyceum-blue border-gray-300 rounded" />
+                            <label htmlFor="register-as-admin" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">Register as Admin</label>
+                        </div>
+                        {registerAsAdmin && (
+                            <div>
+                                <label htmlFor="admin-key" className="sr-only">Admin Key</label>
+                                <input id="admin-key" name="admin-key" type="password" required
+                                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-lyceum-blue focus:border-lyceum-blue sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    placeholder="Admin Registration Key" value={adminKey} onChange={(e) => setAdminKey(e.target.value)} />
+                            </div>
+                        )}
                         {error && <p className="text-sm text-center text-red-500">{error}</p>}
                         <div>
                             <button type="submit" disabled={isLoading}

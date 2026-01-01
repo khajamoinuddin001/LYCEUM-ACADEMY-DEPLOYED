@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { User, UserRole, AppPermissions, ActivityLog } from '../types';
 import * as api from '../utils/api';
-import { ArrowLeft, X, Eye } from './icons';
+import { ArrowLeft, X, Eye, UserPlus, Trash2 } from './icons';
 import { ODOO_APPS, STAFF_ROLES } from './constants';
 
 interface ManageAppsModalProps {
@@ -229,6 +229,10 @@ interface AccessControlViewProps {
 const AccessControlView: React.FC<AccessControlViewProps> = ({ users, activityLog, onUpdateUserRole, onUpdateUserPermissions, onNavigateBack, currentUser, onNewStaffClick, onStartImpersonation }) => {
     const [modalUser, setModalUser] = useState<User | null>(null);
     const [activeTab, setActiveTab] = useState('staff');
+    const [showNewUserModal, setShowNewUserModal] = useState(false);
+    const [newUserForm, setNewUserForm] = useState({ name: '', email: '', role: 'Staff' as UserRole });
+    const [isCreating, setIsCreating] = useState(false);
+    const [createdPassword, setCreatedPassword] = useState<string | null>(null);
 
     const handleRoleChange = async (userId: number, newRole: UserRole) => {
         try {
@@ -237,6 +241,50 @@ const AccessControlView: React.FC<AccessControlViewProps> = ({ users, activityLo
         } catch (error) {
             console.error('Failed to update role:', error);
             alert('Failed to update role: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        }
+    };
+
+    const handleCreateUser = async () => {
+        if (!newUserForm.name || !newUserForm.email || !newUserForm.role) {
+            alert('Please fill in all fields');
+            return;
+        }
+
+        setIsCreating(true);
+        try {
+            const result = await api.createUser(newUserForm.name, newUserForm.email, newUserForm.role, {});
+            setCreatedPassword(result.temporaryPassword);
+            // Refresh users list (parent will handle)
+            alert(`✅ User created successfully!\n\nTemporary Password: ${result.temporaryPassword}\n\nPlease save this password and share it securely with the user.`);
+            setNewUserForm({ name: '', email: '', role: 'Staff' });
+            setShowNewUserModal(false);
+            // Optionally trigger parent refresh
+        } catch (error: any) {
+            console.error('Failed to create user:', error);
+            alert('❌ Failed to create user: ' + (error?.message || 'Unknown error'));
+        } finally {
+            setIsCreating(false);
+        }
+    };
+
+    const handleDeleteUser = async (userId: number, userName: string) => {
+        if (!window.confirm(
+            `⚠️ Delete User: ${userName}?\n\n` +
+            `This will permanently delete the user account and contact record.\n\n` +
+            `✅ PRESERVED: All leads and business data will be kept intact.\n\n` +
+            `Are you sure?`
+        )) {
+            return;
+        }
+
+        try {
+            await api.deleteUser(userId);
+            alert('✅ User deleted successfully. All business data has been preserved.');
+            // Refresh the page to update user list
+            window.location.reload();
+        } catch (error: any) {
+            console.error('Failed to delete user:', error);
+            alert('❌ Failed to delete user: ' + (error?.message || 'Unknown error'));
         }
     };
 
@@ -259,10 +307,11 @@ const AccessControlView: React.FC<AccessControlViewProps> = ({ users, activityLo
                 </div>
                 {currentUser.permissions['Access Control']?.create && activeTab === 'staff' && (
                     <button
-                        onClick={onNewStaffClick}
-                        className="w-full md:w-auto px-4 py-2.5 md:py-2 bg-lyceum-blue text-white rounded-md shadow-sm hover:bg-lyceum-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-lyceum-blue transition-colors touch-manipulation"
+                        onClick={() => setShowNewUserModal(true)}
+                        className="w-full md:w-auto px-4 py-2.5 md:py-2 bg-lyceum-blue text-white rounded-md shadow-sm hover:bg-lyceum-blue-dark focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800 focus:ring-lyceum-blue transition-colors touch-manipulation flex items-center justify-center gap-2"
                     >
-                        New Staff Member
+                        <UserPlus size={18} />
+                        Add User
                     </button>
                 )}
             </div>
@@ -335,15 +384,25 @@ const AccessControlView: React.FC<AccessControlViewProps> = ({ users, activityLo
                                                 </button>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                                <button
-                                                    onClick={() => onStartImpersonation(user)}
-                                                    disabled={user.id === currentUser.id}
-                                                    className="flex items-center px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900/80 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                    title={`Impersonate ${user.name}`}
-                                                >
-                                                    <Eye size={16} className="mr-2" />
-                                                    Impersonate
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => onStartImpersonation(user)}
+                                                        disabled={user.id === currentUser.id}
+                                                        className="flex items-center px-3 py-2 text-sm font-medium text-yellow-700 bg-yellow-100 rounded-md hover:bg-yellow-200 dark:bg-yellow-900/50 dark:text-yellow-300 dark:hover:bg-yellow-900/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={`Impersonate ${user.name}`}
+                                                    >
+                                                        <Eye size={16} className="mr-2" />
+                                                        Impersonate
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUser(user.id, user.name)}
+                                                        disabled={user.id === currentUser.id}
+                                                        className="p-2 text-gray-500 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        title={user.id === currentUser.id ? "Can't delete yourself" : `Delete ${user.name}`}
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -384,6 +443,80 @@ const AccessControlView: React.FC<AccessControlViewProps> = ({ users, activityLo
                     />
                 )
             }
+
+            {/* New User Modal */}
+            {showNewUserModal && (
+                <div className="fixed inset-0 z-50 grid place-items-center p-4 overflow-y-auto" onClick={() => !isCreating && setShowNewUserModal(false)}>
+                    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm" />
+                    <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Add New User</h2>
+                            <button onClick={() => setShowNewUserModal(false)} disabled={isCreating} className="text-gray-400 hover:text-gray-600">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+                                <input
+                                    type="text"
+                                    value={newUserForm.name}
+                                    onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                                    placeholder="Full Name"
+                                    disabled={isCreating}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    value={newUserForm.email}
+                                    onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                                    placeholder="email@example.com"
+                                    disabled={isCreating}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                                <select
+                                    value={newUserForm.role}
+                                    onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value as UserRole })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+                                    disabled={isCreating}
+                                >
+                                    <option value="Admin">Admin</option>
+                                    <option value="Staff">Staff</option>
+                                    <option value="Student">Student</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={() => setShowNewUserModal(false)}
+                                disabled={isCreating}
+                                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCreateUser}
+                                disabled={isCreating}
+                                className="flex-1 px-4 py-2 bg-lyceum-blue text-white rounded-md hover:bg-lyceum-blue-dark disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isCreating && (
+                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                )}
+                                {isCreating ? 'Creating...' : 'Create User'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
               @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

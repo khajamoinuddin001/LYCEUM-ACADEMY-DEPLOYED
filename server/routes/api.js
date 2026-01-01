@@ -356,6 +356,92 @@ const transformLead = (lead) => {
 };
 
 // Leads routes
+router.put('/users/:id', async (req, res) => {
+  try {
+    // Only admin can update users
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const updateFields = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (req.body.role) {
+      updateFields.push(`role = $${paramCount++}`);
+      values.push(req.body.role);
+    }
+
+    if (!updateFields.length) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE users SET ${updateFields.join(', ')} WHERE id = $${paramCount} RETURNING id, name, email, role, permissions`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete user (Admin only) - PRESERVES all business data
+router.delete('/users/:id', async (req, res) => {
+  try {
+    // Only admin can delete users
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ error: 'Only admins can delete users' });
+    }
+
+    const userIdToDelete = parseInt(req.params.id);
+
+    // Prevent self-deletion
+    if (userIdToDelete === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    // Check if user exists and get their role
+    const userCheck = await query('SELECT role FROM users WHERE id = $1', [userIdToDelete]);
+    if (userCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const userRole = userCheck.rows[0].role;
+
+    // If deleting an admin, check if they're the last admin
+    if (userRole === 'Admin') {
+      const adminCount = await query('SELECT COUNT(*) FROM users WHERE role = $1', ['Admin']);
+      if (parseInt(adminCount.rows[0].count) <= 1) {
+        return res.status(400).json({ error: 'Cannot delete the last admin account' });
+      }
+    }
+
+    // IMPORTANT: We only delete the user and their contact
+    // All business data (leads, activities, etc.) is preserved
+
+    // Delete user's contact record
+    await query('DELETE FROM contacts WHERE user_id = $1', [userIdToDelete]);
+
+    // Delete the user account
+    await query('DELETE FROM users WHERE id = $1', [userIdToDelete]);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully. All business data has been preserved.'
+    });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
 router.get('/leads', async (req, res) => {
   try {
     const result = await query('SELECT * FROM leads');
