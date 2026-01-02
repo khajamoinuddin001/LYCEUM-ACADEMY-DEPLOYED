@@ -4,44 +4,46 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Create transporter
+// Create transporter using generic SMTP configuration
 const createTransporter = () => {
-  // For development/testing, use Gmail or any SMTP
-  // For production, use SendGrid, Mailgun, or AWS SES
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
+  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(process.env.SMTP_PORT || '587');
+  const secure = process.env.SMTP_SECURE === 'true'; // true for port 465, false for others
 
-  if (process.env.EMAIL_SERVICE === 'gmail') {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD, // Use App Password, not regular password
-      },
-    });
+  if (!user || !pass) {
+    console.warn('⚠️ SMTP credentials not fully configured in environment variables.');
   }
 
-  // Default SMTP configuration
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+    tls: {
+      // Allow self-signed certificates or slightly older SSL versions if needed
+      rejectUnauthorized: false
     },
+    // Use pooling for better connection management in production
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100
   });
 };
 
 // Send password reset email
 export const sendPasswordResetEmail = async (email, name, resetToken) => {
+  console.log(`📧 Attempting to send password reset email to: ${email}`);
   try {
     const transporter = createTransporter();
-
-    // Construct reset URL
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?token=${resetToken}`;
 
     const mailOptions = {
       from: `"Lyceum Academy" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: 'Reset Your Lyceum Academy Password',
+      // ... (rest of mail options remain same)
       html: `
         <!DOCTYPE html>
         <html>
@@ -120,38 +122,23 @@ export const sendPasswordResetEmail = async (email, name, resetToken) => {
         </body>
         </html>
       `,
-      text: `
-Hi ${name},
-
-You requested to reset your password for your Lyceum Academy account.
-
-Click the link below to set a new password:
-${resetUrl}
-
-This link expires in 1 hour.
-
-If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
-
-Best regards,
-Lyceum Academy Team
-      `.trim(),
+      text: `Hi ${name},\n\nYou requested to reset your password for your Lyceum Academy account.\n\nClick the link below to set a new password:\n${resetUrl}\n\nThis link expires in 1 hour.\n\nIf you didn't request this password reset, please ignore this email. Your password will remain unchanged.\n\nBest regards,\nLyceum Academy Team`.trim(),
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Password reset email sent:', info.messageId);
+    console.log('✅ Password reset email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending password reset email:', error);
+    console.error('❌ Error sending password reset email:', error);
     return { success: false, error: error.message };
   }
 };
 
 // Send verification email
 export const sendVerificationEmail = async (email, name, token) => {
+  console.log(`📧 Attempting to send verification email to: ${email}`);
   try {
     const transporter = createTransporter();
-
-    // Construct verification URL
     const verifyUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
 
     const mailOptions = {
@@ -230,26 +217,14 @@ export const sendVerificationEmail = async (email, name, token) => {
         </body>
         </html>
       `,
-      text: `
-Hi ${name},
-
-Thanks for signing up for Lyceum Academy!
-
-Please verify your email address by clicking the link below:
-${verifyUrl}
-
-If you didn't create an account with Lyceum Academy, please ignore this email.
-
-Best regards,
-Lyceum Academy Team
-      `.trim(),
+      text: `Hi ${name},\n\nThanks for signing up for Lyceum Academy!\n\nPlease verify your email address by clicking the link below:\n${verifyUrl}\n\nIf you didn't create an account with Lyceum Academy, please ignore this email.\n\nBest regards,\nLyceum Academy Team`.trim(),
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log('Verification email sent:', info.messageId);
+    console.log('✅ Verification email sent:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending verification email:', error);
+    console.error('❌ Error sending verification email:', error);
     return { success: false, error: error.message };
   }
 };
@@ -257,12 +232,13 @@ Lyceum Academy Team
 // Test email configuration
 export const testEmailConfig = async () => {
   try {
+    console.log('🔍 Testing email configuration...');
     const transporter = createTransporter();
     await transporter.verify();
     console.log('✅ Email server is ready to send messages');
     return true;
   } catch (error) {
-    console.error('❌ Email configuration error:', error.message);
+    console.error('❌ Email configuration error:', error.message || error);
     return false;
   }
 };
